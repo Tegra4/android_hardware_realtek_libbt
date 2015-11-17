@@ -47,9 +47,9 @@
 
 
 /* Device port name where Bluetooth controller attached */
-//#ifndef BLUETOOTH_UART_DEVICE_PORT
+#ifndef BLUETOOTH_UART_DEVICE_PORT
 #define BLUETOOTH_UART_DEVICE_PORT      "/dev/ttyHSU0"    /* HSU */
-//#endif
+#endif
 
 /* Location of firmware patch files */
 #ifndef FW_PATCHFILE_LOCATION
