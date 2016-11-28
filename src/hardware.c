@@ -72,8 +72,8 @@
 #define HCI_UART_3WIRE  2
 
 
-#define FIRMWARE_DIRECTORY  "/system/etc/firmware/bt/%s"
-#define BT_CONFIG_DIRECTORY "/system/etc/firmware/bt/%s"
+#define FIRMWARE_DIRECTORY  "/system/etc/firmware/%s"
+#define BT_CONFIG_DIRECTORY "/system/etc/firmware/%s"
 #define PATCH_DATA_FIELD_MAX_SIZE     252
 
 #define BT_CAL_DIRECTORY "/data/misc/bluedroid/"
