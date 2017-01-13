@@ -83,7 +83,7 @@ static const tUSERIAL_CFG userial_init_cfg =
 **
 *****************************************************************************/
 
-static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr,char *bt_device_node)
+static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr)
 {
     ALOGI("init");
 
@@ -93,7 +93,7 @@ static int init(const bt_vendor_callbacks_t* p_cb, unsigned char *local_bdaddr,c
         return -1;
     }
 
-    userial_vendor_init(bt_device_node);
+    userial_vendor_init();
     upio_init();
 
     /* store reference to user callbacks */
