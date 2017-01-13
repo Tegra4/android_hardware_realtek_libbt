@@ -56,7 +56,7 @@
 **  Constants &  Macros
 ******************************************************************************/
 
-#define RTK_VERSION "3.8 with Android6.0"
+#define RTK_VERSION "3.8"
 
 #define RTK_8703A_SUPPORT   0  /* 1:support 8703a, 0:not support */
 
@@ -554,7 +554,7 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
         switch(le16_to_cpu(entry->offset))
         {
 #if (USE_CONTROLLER_BDADDR == FALSE)
-		
+
             case 0x44:
 			case 0x3c:
             {
@@ -603,7 +603,7 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
         bt_addr[4], bt_addr[5]);
         *config_buf = realloc(*config_buf, *filelen+9);
         ((struct rtk_bt_vendor_config*)*config_buf)->data_len += 9;
-		if(hw_cfg_cb.lmp_version == ROM_LMP_8703b){ 
+		if(hw_cfg_cb.lmp_version == ROM_LMP_8703b){
         	*((char*)*config_buf + *filelen) = 0x44;
 		}else {
 			*((char*)*config_buf + *filelen) = 0x3c;
@@ -766,7 +766,7 @@ struct rtk_epatch_entry *rtk_get_patch_entry(bt_hw_cfg_cb_t *cfg_cb)
 
     patch->number_of_patch = le16_to_cpu(patch->number_of_patch);
 
-    ALOGI("rtk_get_patch_entry: fw_ver 0x%08x, patch_num %d", 
+    ALOGI("rtk_get_patch_entry: fw_ver 0x%08x, patch_num %d",
                 le32_to_cpu(patch->fw_version), patch->number_of_patch);
 
     for (i = 0; i < patch->number_of_patch; i++)
@@ -865,7 +865,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
     {
         cfg_cb->total_len = entry->patch_length + cfg_cb->config_len;
     }
-    else 
+    else
     {
         cfg_cb->dl_fw_flag = 0;
         goto free_buf;
@@ -888,7 +888,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
         ALOGI("fw svn_version = %05d", entry->svn_version);
         ALOGI("BTCOEX20%06d-%04x",
         ((entry->coex_version >> 16) & 0x7ff) + ((entry->coex_version >> 27) * 10000),
-        (entry->coex_version & 0xffff)); 
+        (entry->coex_version & 0xffff));
     }
 
     if (cfg_cb->config_len)
@@ -1035,7 +1035,7 @@ void hw_config_cback(void *p_mem)
                     is_proceeding = FALSE;
                     break;
                 }
-                
+
                 if (hw_cfg_cb.lmp_version == ROM_LMP_8703b)
                 {
                     hw_cfg_cb.state = HW_CFG_READ_CHIP_TYPE;
@@ -1045,11 +1045,11 @@ void hw_config_cback(void *p_mem)
                     UINT8_TO_STREAM(p, 0x00);
                     UINT32_TO_STREAM(p, 0xB000A094);
                     p_buf->len = HCI_CMD_PREAMBLE_SIZE + HCI_CMD_READ_CHIP_TYPE_SIZE;
-                    
+
                     pp = (uint8_t *) (p_buf + 1);
                     for (i = 0; i < p_buf->len; i++)
                     ALOGI("get chip type command data[%d]= %x", i, *(pp+i));
-                   
+
                     is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_READ_CHIP_TYPE, p_buf, hw_config_cback);
                     break;
                 }
@@ -1071,7 +1071,7 @@ void hw_config_cback(void *p_mem)
                     hw_cfg_cb.chip_type = ((*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_ROM_VERSION))&0x0F);
                     ALOGE("get chip hw_cfg_cb.lmp_version = %d", hw_cfg_cb.lmp_version);
                     ALOGE("get chip hw_cfg_cb.hci_version = %d", hw_cfg_cb.hci_version);
-                    ALOGE("get chip hw_cfg_cb.chip_type = %d", hw_cfg_cb.chip_type);                 
+                    ALOGE("get chip hw_cfg_cb.chip_type = %d", hw_cfg_cb.chip_type);
                 }
                 else
                 {
@@ -1111,7 +1111,7 @@ CFG_START:
                     {
                         prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_vf);
                     }
-                    else 
+                    else
                     {
                         ALOGE("get chip type error");
                         is_proceeding = FALSE;
@@ -1149,7 +1149,7 @@ CFG_START:
                     break;
                 }
 
-                if ((hw_cfg_cb.total_len > 0) && hw_cfg_cb.dl_fw_flag) 
+                if ((hw_cfg_cb.total_len > 0) && hw_cfg_cb.dl_fw_flag)
                 {
                     hw_cfg_cb.patch_frag_cnt = hw_cfg_cb.total_len / PATCH_DATA_FIELD_MAX_SIZE;
                     hw_cfg_cb.patch_frag_tail = hw_cfg_cb.total_len % PATCH_DATA_FIELD_MAX_SIZE;
