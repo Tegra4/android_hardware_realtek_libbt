@@ -27,10 +27,10 @@
 #undef NDEBUG
 #define LOG_TAG "bt_vendor"
 #include <utils/Log.h>
-#include <bt_types.h>
 #include "bt_vendor_rtk.h"
 #include "upio.h"
 #include "userial_vendor.h"
+
 #ifndef BTVND_DBG
 #define BTVND_DBG TRUE
 #endif
