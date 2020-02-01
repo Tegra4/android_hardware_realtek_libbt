@@ -103,4 +103,16 @@ int upio_set_bluetooth_power(int on);
 *******************************************************************************/
 void upio_set(uint8_t pio, uint8_t action, uint8_t polarity);
 
+
+/*******************************************************************************
+**
+** Function        bt_wake_up_host_mode_set
+**
+** Description     To enable/disable bt_wake_up_host mode.
+**
+** Returns         0  : SUCCESS or Not-Applicable
+**                 <0 : ERROR
+**
+*******************************************************************************/
+int bt_wake_up_host_mode_set(uint8_t mode);
 #endif /* UPIO_H */

@@ -29,13 +29,36 @@
 
 #ifndef BT_VENDOR_RTK_H
 #define BT_VENDOR_RTK_H
-#include <string.h>
+
 #include "bt_vendor_lib.h"
 #include "vnd_buildcfg.h"
+#include "rtk_btsnoop_net.h"
+#include <string.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/ioctl.h>
+#include <sys/epoll.h>
+#include <sys/eventfd.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <cutils/properties.h>
+
 
 /******************************************************************************
 **  Constants & Macros
 ******************************************************************************/
+#define RTKBT_TRANS_H4          0x20
+#define RTKBT_TRANS_H5          0x10
+#define RTKBT_TRANS_UART        0x01
+#define RTKBT_TRANS_USB         0x20
+
 
 #ifndef FALSE
 #define FALSE  0
@@ -43,6 +66,16 @@
 
 #ifndef TRUE
 #define TRUE   (!FALSE)
+#endif
+
+#ifndef BTVND_DBG
+#define BTVND_DBG TRUE
+#endif
+
+#if (BTVND_DBG == TRUE)
+#define BTVNDDBG(param, ...) {ALOGD(param, ## __VA_ARGS__);}
+#else
+#define BTVNDDBG(param, ...) {}
 #endif
 
 
@@ -53,7 +86,7 @@
 
 /* Location of firmware patch files */
 #ifndef FW_PATCHFILE_LOCATION
-#define FW_PATCHFILE_LOCATION "/vendor/firmware/"  /* maguro */
+#define FW_PATCHFILE_LOCATION "/vendor/etc/firmware/"  /* maguro */
 #endif
 
 #ifndef UART_TARGET_BAUD_RATE
@@ -77,11 +110,7 @@
  *  firmware patchram (.hcd) file.
  */
 #ifndef USE_CONTROLLER_BDADDR
-#ifdef RTL_8723BS_BT_USED
-#define USE_CONTROLLER_BDADDR   TRUE //FALSE
-#else
-#define USE_CONTROLLER_BDADDR   FALSE //FALSE
-#endif
+#define USE_CONTROLLER_BDADDR   FALSE
 #endif
 
 /* sleep mode

@@ -177,6 +177,52 @@ static int init_rfkill()
     return 0;
 }
 
+int bt_wake_up_host_mode_set(uint8_t mode)
+{
+    char path[64];
+    char buffer = '0';
+    int sz;
+    int fd = -1;
+    int ret = -1;
+    ALOGE("bt_wake_up_host_mode_set");
+
+    snprintf(path, sizeof(path), "/proc/bluetooth/sleep/lpm");
+    ALOGE("bt_wake_up_host_mode_set path:%s", path);
+
+    fd = open(path, O_WRONLY);
+    if (fd < 0)
+    {
+        ALOGE("bt_wake_up_host_mode_set fd:%d = open(path, O_RDWR): open(%s) failed: %s (%d)\n", \
+            fd, path, strerror(errno), errno);
+        return -1;
+    }
+
+    ALOGE("bt_wake_up_host_mode_set fd:%d = open(path, O_RDWR): open(%s) success\n", \
+           fd, path);
+
+    if(mode == 1)
+    {
+       buffer = '1';
+    } else {
+       buffer = '0';
+    }
+
+    ALOGE("bt_wake_up_host_mode_set buffer:%d", buffer);
+    sz = write(fd, &buffer, 1);
+
+    if (sz < 0) {
+        ALOGE("bt_wake_up_host_mode_set : write(%s) failed: %s (%d)",
+            rfkill_state_path, strerror(errno),errno);
+    }
+    else
+        ret = 0;
+
+    if (fd >= 0)
+        close(fd);
+
+    return ret;
+}
+
 /*****************************************************************************
 **   LPM Static Functions
 *****************************************************************************/

@@ -30,10 +30,17 @@
 
 #include "bt_vendor_rtk.h"
 #include "userial.h"
+#include "hci_h5_int.h"
+#include <sys/poll.h>
+#include <assert.h>
+#include "rtk_parse.h"
+#include "bt_skbuff.h"
 
 /******************************************************************************
 **  Constants & Macros
 ******************************************************************************/
+#define RTK_GET_BOUNDARY_FLAG(handle) (((handle) >> 12) & 0x0003)
+#define RTK_START_PACKET_BOUNDARY 2
 
 /**** baud rates ****/
 #define USERIAL_BAUD_300        0
@@ -113,6 +120,14 @@ typedef enum {
     USERIAL_OP_NOP,
 } userial_vendor_ioctl_op_t;
 
+enum {
+    RTKBT_PACKET_IDLE,
+    RTKBT_PACKET_TYPE,
+    RTKBT_PACKET_HEADER,
+    RTKBT_PACKET_CONTENT,
+    RTKBT_PACKET_END
+};
+
 /******************************************************************************
 **  Extern variables and functions
 ******************************************************************************/
@@ -130,7 +145,7 @@ typedef enum {
 ** Returns         None
 **
 *******************************************************************************/
-void userial_vendor_init(void);
+void userial_vendor_init(char *bt_device_node);
 
 /*******************************************************************************
 **
@@ -177,5 +192,11 @@ void userial_vendor_set_baud(uint8_t userial_baud);
 void userial_vendor_ioctl(userial_vendor_ioctl_op_t op, void *p_data);
 
 void userial_vendor_set_hw_fctrl(uint8_t hw_fctrl);
+
+int userial_socket_open(void);
+
+int userial_vendor_usb_ioctl(int operation);
+
+int userial_vendor_usb_open(void);
 
 #endif /* USERIAL_VENDOR_H */

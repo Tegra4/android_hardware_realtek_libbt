@@ -27,6 +27,7 @@
  ******************************************************************************/
 
 #define LOG_TAG "bt_hwcfg"
+#define RTKBT_RELEASE_NAME "20171107_BT_ANDROID_8.x"
 
 #include <utils/Log.h>
 #include <sys/types.h>
@@ -54,24 +55,7 @@
 /******************************************************************************
 **  Constants &  Macros
 ******************************************************************************/
-
-#define RTK_VERSION "3.8"
-
-#define RTK_8703A_SUPPORT   0  /* 1:support 8703a, 0:not support */
-
-#ifndef BTHW_DBG
-#define BTHW_DBG FALSE
-#endif
-
-#if (BTHW_DBG == TRUE)
-#define BTHWDBG(param, ...) {ALOGD(param, ## __VA_ARGS__);}
-#else
-#define BTHWDBG(param, ...) {}
-#endif
-
-#ifndef USE_CONTROLLER_BDADDR
-#define USE_CONTROLLER_BDADDR TRUE
-#endif
+#define RTK_VERSION "4.1.1"
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define cpu_to_le16(d)  (d)
@@ -87,11 +71,15 @@
 #error "Unknown byte order"
 #endif
 
-#define FIRMWARE_DIRECTORY  "/system/etc/firmware/%s"
-#define BT_CONFIG_DIRECTORY "/system/etc/firmware/%s"
+#define FIRMWARE_DIRECTORY  "/vendor/etc/firmware/%s"
+#define BT_CONFIG_DIRECTORY "/vendor/etc/firmware/%s"
 #define PATCH_DATA_FIELD_MAX_SIZE       252
 #define RTK_VENDOR_CONFIG_MAGIC         0x8723ab55
-#define RTK_PATCH_LENGTH_MAX            24576   //24*1024
+#define MAX_PATCH_SIZE_24K            (1024*24)   //24K
+#define MAX_PATCH_SIZE_40K            (1024*40)   //40K
+
+#define MAX_ORG_CONFIG_SIZE     (0x100*14)
+#define MAX_ALT_CONFIG_SIZE     (0x100*2)
 
 struct rtk_bt_vendor_config_entry{
     uint16_t offset;
@@ -107,59 +95,56 @@ struct rtk_bt_vendor_config{
 
 #define HCI_CMD_MAX_LEN             258
 
-#define HCI_RESET                               0x0C03
-#define HCI_READ_LMP_VERSION                    0x1001
-#define HCI_VSC_H5_INIT                         0xFCEE
-#define HCI_VSC_UPDATE_BAUDRATE                 0xFC17
-#define HCI_VSC_DOWNLOAD_FW_PATCH               0xFC20
-#define HCI_VSC_READ_ROM_VERSION                0xFC6D
-#define HCI_VSC_READ_CHIP_TYPE                0xFC61
+#define HCI_VERSION_MASK_10     (1<<0)     //Bluetooth Core Spec 1.0b
+#define HCI_VERSION_MASK_11     (1<<1)     //Bluetooth Core Spec 1.1
+#define HCI_VERSION_MASK_12     (1<<2)     //Bluetooth Core Spec 1.2
+#define HCI_VERSION_MASK_20     (1<<3)     //Bluetooth Core Spec 2.0+EDR
+#define HCI_VERSION_MASK_21     (1<<4)     //Bluetooth Core Spec 2.1+EDR
+#define HCI_VERSION_MASK_30     (1<<5)     //Bluetooth Core Spec 3.0+HS
+#define HCI_VERSION_MASK_40     (1<<6)     //Bluetooth Core Spec 4.0
+#define HCI_VERSION_MASK_41     (1<<7)     //Bluetooth Core Spec 4.1
+#define HCI_VERSION_MASK_42     (1<<8)     //Bluetooth Core Spec 4.2
+#define HCI_VERSION_MASK_ALL    (0xFFFFFFFF)
 
-#define ROM_LMP_NONE                0x0000
-#define ROM_LMP_8723a               0x1200
-#define ROM_LMP_8723b               0x8723
-#define ROM_LMP_8703a               0x87b3
-#define ROM_LMP_8821a               0X8821
-#define ROM_LMP_8761a               0X8761
-#define ROM_LMP_8763a               0x8763
-#define ROM_LMP_8703b               0x8703//???????
-#define ROM_LMP_8723c               0x87c3//???????
-#define ROM_LMP_8723cs_xx        0x8704//0x8703+1
-#define ROM_LMP_8723cs_cg        0x8705//0x8703+2
-#define ROM_LMP_8723cs_vf         0x8706//0x8703+3
-#define ROM_LMP_8822b               0x8822
+#define HCI_REVISION_MASK_ALL   (0xFFFFFFFF)
 
-#define CHIP_8723CS_CG 3
-#define CHIP_8723CS_VF 4
-#define CHIP_RTL8723CS_XX 5
-#define CHIP_8703BS   7
+#define LMP_SUBVERSION_NONE     (0x0)
+#define LMPSUBVERSION_8723a     (0x1200)
 
-#define HCI_EVT_CMD_CMPL_STATUS_RET_BYTE        5
-#define HCI_EVT_CMD_CMPL_LOCAL_NAME_STRING      6
-#define HCI_EVT_CMD_CMPL_LOCAL_BDADDR_ARRAY     6
-#define HCI_EVT_CMD_CMPL_OPCODE                 3
-#define HCI_EVT_CMD_CMPL_HCI_VERSION            6
-#define HCI_EVT_CMD_CMPL_LPM_VERSION            12
-#define HCI_EVT_CMD_CMPL_ROM_VERSION            6
-#define HCI_EVT_CMD_CMPL_CHIP_TYPE            6
-#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          6
-#define HCI_CMD_PREAMBLE_SIZE                   3
-#define HCI_CMD_READ_CHIP_TYPE_SIZE         5
-#define HCD_REC_PAYLOAD_LEN_BYTE                2
-#define BD_ADDR_LEN                             6
-#define LOCAL_NAME_BUFFER_LEN                   32
-#define LOCAL_BDADDR_PATH_BUFFER_LEN            256
+#define CHIPTYPE_NONE           (0x1F)      //Chip Type's range: 0x0 ~ 0xF
+#define CHIP_TYPE_MASK_ALL      (0xFFFFFFFF)
 
-#define H5_SYNC_REQ_SIZE 2
-#define H5_SYNC_RESP_SIZE 2
-#define H5_CONF_REQ_SIZE 3
-#define H5_CONF_RESP_SIZE 2
+#define PROJECT_ID_MASK_ALL     (0xFFFFFFFF)    // temp used for unknow project id for a new chip
 
-#define STREAM_TO_UINT16(u16, p) {u16 = ((uint16_t)(*(p)) + (((uint16_t)(*((p) + 1))) << 8)); (p) += 2;}
-#define UINT16_TO_STREAM(p, u16) {*(p)++ = (uint8_t)(u16); *(p)++ = (uint8_t)((u16) >> 8);}
-#define UINT32_TO_STREAM(p, u32) {*(p)++ = (uint8_t)(u32); *(p)++ = (uint8_t)((u32) >> 8); *(p)++ = (uint8_t)((u32) >> 16); *(p)++ = (uint8_t)((u32) >> 24);}
-#define STREAM_TO_UINT32(u32, p) {u32 = (((uint32_t)(*(p))) + ((((uint32_t)(*((p) + 1)))) << 8) + ((((uint32_t)(*((p) + 2)))) << 16) + ((((uint32_t)(*((p) + 3)))) << 24)); (p) += 4;}
-#define UINT8_TO_STREAM(p, u8)   {*(p)++ = (uint8_t)(u8);}
+#define PATCH_OPTIONAL_MATCH_FLAG_CHIPTYPE   (0x1)
+
+#define CONFIG_MAC_OFFSET_GEN_1_2       (0x3C)      //MAC's OFFSET in config/efuse for realtek generation 1~2 bluetooth chip
+#define CONFIG_MAC_OFFSET_GEN_3PLUS     (0x44)      //MAC's OFFSET in config/efuse for rtk generation 3+ bluetooth chip
+
+#define HCI_EVT_CMD_CMPL_OPCODE_OFFSET          (3)     //opcode's offset in COMMAND Completed Event
+#define HCI_EVT_CMD_CMPL_STATUS_OFFSET          (5)     //status's offset in COMMAND Completed Event
+
+#define HCI_EVT_CMD_CMPL_OP1001_HCI_VERSION_OFFSET     (6)     //HCI_Version's offset in COMMAND Completed Event for OpCode 0x1001(Read Local Version Information Command)
+#define HCI_EVT_CMD_CMPL_OP1001_HCI_REVISION_OFFSET     (7)     //HCI_Revision's offset in COMMAND Completed Event for OpCode 0x1001(Read Local Version Information Command)
+#define HCI_EVT_CMD_CMPL_OP1001_LMP_SUBVERSION_OFFSET  (12)    //LMP Subversion's offset in COMMAND Completed Event for OpCode 0x1001(Read Local Version Information Command)
+#define HCI_EVT_CMD_CMPL_OP0C14_LOCAL_NAME_OFFSET      (6)     //Local Name's offset in COMMAND Completed Event for OpCode 0x0C14(Read Local Name Command)
+#define HCI_EVT_CMD_CMPL_OP1009_BDADDR_OFFSET    (6)     //BD_ADDR's offset in COMMAND Completed Event for OpCode 0x1009(Read BD_ADDR Command)
+#define HCI_EVT_CMD_CMPL_OPFC6D_EVERSION_OFFSET        (6)  //eversion's offset in COMMAND Completed Event for OpCode 0xfc6d(Read eVERSION Vendor Command)
+#define HCI_EVT_CMD_CMPL_OPFC61_CHIPTYPE_OFFSET        (6)  //chip type's offset in COMMAND Completed Event for OpCode 0xfc61(Read ChipType Vendor Command)
+
+//#define UPDATE_BAUDRATE_CMD_PARAM_SIZE          (6)
+#define HCI_CMD_PREAMBLE_SIZE                   (3)
+#define HCI_CMD_READ_CHIP_TYPE_SIZE             (5)
+//#define HCD_REC_PAYLOAD_LEN_BYTE                (2)
+//#define BD_ADDR_LEN                             (6)
+//#define LOCAL_NAME_BUFFER_LEN                   (32)
+//#define LOCAL_BDADDR_PATH_BUFFER_LEN            (256)
+
+#define H5_SYNC_REQ_SIZE (2)
+#define H5_SYNC_RESP_SIZE (2)
+#define H5_CONF_REQ_SIZE (3)
+#define H5_CONF_RESP_SIZE (2)
+
 /******************************************************************************
 **  Local type definitions
 ******************************************************************************/
@@ -167,8 +152,8 @@ struct rtk_bt_vendor_config{
 /* Hardware Configuration State */
 enum {
     HW_CFG_H5_INIT = 1,
-    HW_CFG_READ_LMP_VER,
-    HW_CFG_READ_ROM_VER,
+    HW_CFG_READ_LOCAL_VER,
+    HW_CFG_READ_ECO_VER,   //eco version
     HW_CFG_READ_CHIP_TYPE,
     HW_CFG_START,
     HW_CFG_SET_UART_BAUD_HOST,//change FW baudrate
@@ -180,11 +165,14 @@ enum {
 /* h/w config control block */
 typedef struct
 {
+    uint32_t    max_patch_size;
     uint32_t    baudrate;
-    uint16_t    lmp_version;
+    uint16_t    lmp_subversion;
     uint8_t     state;          /* Hardware configuration state */
     uint8_t     eversion;
+    uint32_t    project_id_mask;
     uint8_t     hci_version;
+    uint8_t     hci_revision;
     uint8_t     chip_type;
     uint8_t     dl_fw_flag;
     int         fw_len;          /* FW patch file len */
@@ -223,12 +211,33 @@ typedef struct
 
 void hw_config_cback(void *p_evt_buf);
 extern uint8_t vnd_local_bd_addr[BD_ADDR_LEN];
+extern bool rtkbt_auto_restart;
 
 /******************************************************************************
 **  Static variables
 ******************************************************************************/
 static bt_hw_cfg_cb_t hw_cfg_cb;
 
+//#define BT_CHIP_PROBE_SIMULATION
+#ifdef BT_CHIP_PROBE_SIMULATION
+static bt_hw_cfg_cb_t hw_cfg_test;
+struct bt_chip_char{
+    uint16_t    lmp_subversion;
+    uint8_t     hci_version;
+    uint8_t     hci_revision;
+    uint8_t     chip_type;
+};
+struct bt_chip_char bt_chip_chars[] = \
+{
+        {0x8723, 0x4, 0xb, CHIPTYPE_NONE},      //8703as
+        {0x8723, 0x6, 0xb, CHIPTYPE_NONE},      //8723bs
+        {0x8703, 0x4, 0xd, 0x7},                //8703bs
+        {0x8703, 0x6, 0xb, 0x3},                //8723cs-cg
+        {0x8703, 0x6, 0xb, 0x4},                //8723cs-vf
+        {0x8703, 0x6, 0xb, 0x5},                //8723cs-xx
+        {0x8723, 0x6, 0xd, CHIPTYPE_NONE},      //8723ds
+};
+#endif
 static bt_lpm_param_t lpm_param =
 {
     LPM_SLEEP_MODE,
@@ -250,45 +259,40 @@ const uint8_t RTK_EPATCH_SIGNATURE[8]={0x52,0x65,0x61,0x6C,0x74,0x65,0x63,0x68};
 //Extension Section IGNATURE:0x77FD0451
 const uint8_t EXTENSION_SECTION_SIGNATURE[4]={0x51,0x04,0xFD,0x77};
 
-uint16_t project_id[]=
-{
-	ROM_LMP_8723a,
-	ROM_LMP_8723b,
-	ROM_LMP_8821a,
-	ROM_LMP_8761a,
-    ROM_LMP_8703a,
-    ROM_LMP_8763a,
-    ROM_LMP_8703b,
-    ROM_LMP_8723c,
-    ROM_LMP_8822b,
-	ROM_LMP_NONE
-};
-
 typedef struct {
-    uint16_t    prod_id;
+    uint16_t    lmp_subversion;
+    uint32_t     hci_version_mask;
+    uint32_t     hci_revision_mask;
+    uint32_t     chip_type_mask;
+    uint32_t     project_id_mask;
     char        *patch_name;
     char        *config_name;
+    uint16_t     mac_offset;
+    uint32_t    max_patch_size;
 } patch_info;
 
 static patch_info patch_table[] = {
-    { ROM_LMP_8723a, "rtl8723as_fw", "rtl8723as_config" },    //Rtl8723AS
- #ifdef RTL_8723BS_BT_USED
-    { ROM_LMP_8723b, "rtl8723bs_fw", "rtl8723bs_config"},     //Rtl8723BS
-#endif
-#ifdef RTL_8723BS_VQ0_BT_USED
-    { ROM_LMP_8723b, "rtl8723bs_VQ0_fw", "rtl8723bs_VQ0_config"}, //Rtl8723BS_VQ0
-#endif
-    { ROM_LMP_8703a, "rtl8703as_fw", "rtl8703as_config"},     //Rtl8703aS
-    { ROM_LMP_8821a, "rtl8821as_fw", "rtl8821as_config"},     //Rtl8821AS
-    { ROM_LMP_8761a, "rtl8761as_fw", "rtl8761as_config"},     //Rtl8761AW
-    { ROM_LMP_8822b, "rtl8822bs_fw", "rtl8822bs_config"},     //Rtl8822BS
-    { ROM_LMP_8703b, "rtl8703bs_fw", "rtl8703bs_config"},     //Rtl8703BS
-    { ROM_LMP_8723cs_xx, "rtl8723cs_xx_fw", "rtl8723cs_xx_config"},     //rtl8723cs_xx
-    { ROM_LMP_8723cs_cg, "rtl8723cs_cg_fw", "rtl8723cs_cg_config"},     //rtl8723cs_cg
-    { ROM_LMP_8723cs_vf,  "rtl8723cs_vf_fw", "rtl8723cs_vf_config"},     //rtl8723cs_vf
-    /* add entries here*/
+/*    lmp_subv                      hci_version_mask                    hci_revision_mask                chip_type_mask              project_id_mask                 fw name                                 config name                         mac offset                         max_patch_size  */
+    {0x1200,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, CHIP_TYPE_MASK_ALL,  1<<0,                  "rtl8723as_fw",         "rtl8723as_config",     CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K},    //Rtl8723AS
 
-    { ROM_LMP_NONE,  "rtl_none_fw", "rtl_none_config"}
+    {0x8723,            ~(HCI_VERSION_MASK_21),  ~(1<<0xd),             CHIP_TYPE_MASK_ALL,  1<<1,                  "rtl8723bs_fw",         "rtl8723bs_config",     CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K},     //Rtl8723BS
+//    {0x8723,            ~(HCI_VERSION_MASK_21),  ~(1<<0xd),             CHIP_TYPE_MASK_ALL,  1<<1,                  "rtl8723bs_VQ0_fw",     "rtl8723bs_VQ0_config", CONFIG_MAC_OFFSET_GEN_1_2}, //Rtl8723BS_VQ0
+    {0x8821,            HCI_VERSION_MASK_ALL,    ~(1<<0xc),             CHIP_TYPE_MASK_ALL,  1<<2,                  "rtl8821as_fw",         "rtl8821as_config",     CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K},     //Rtl8821AS
+    {0x8761,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, CHIP_TYPE_MASK_ALL,  1<<3,                  "rtl8761at_fw",         "rtl8761at_config",     CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K},     //Rtl8761AW
+    {0x8723,            HCI_VERSION_MASK_21,     HCI_REVISION_MASK_ALL, CHIP_TYPE_MASK_ALL,  1<<4,                  "rtl8703as_fw",         "rtl8703as_config",     CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K},     //Rtl8703AS
+
+    {0x8703,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, 1<<7,                1<<6,                  "rtl8703bs_fw",         "rtl8703bs_config",     CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_24K},     //Rtl8703BS
+    {0x8703,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, 1<<5,                1<<7,                  "rtl8723cs_xx_fw",      "rtl8723cs_xx_config",  CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_24K},     //rtl8723cs_xx
+    {0x8703,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, 1<<3,                1<<7,                  "rtl8723cs_cg_fw",      "rtl8723cs_cg_config",  CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_24K},     //rtl8723cs_cg
+    {0x8703,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, 1<<4,                1<<7,                  "rtl8723cs_vf_fw",      "rtl8723cs_vf_config",  CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_24K},     //rtl8723cs_vf
+    {0x8822,            HCI_VERSION_MASK_ALL,    HCI_REVISION_MASK_ALL, CHIP_TYPE_MASK_ALL,  1<<8,                  "rtl8822bs_fw",         "rtl8822bs_config",     CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_24K},     //Rtl8822BS
+
+    {0x8723,            HCI_VERSION_MASK_ALL,    (1<<0xd),              ~(1<<7),           1<<9,                    "rtl8723ds_fw",         "rtl8723ds_config",     CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_40K}, //Rtl8723ds
+    {0x8723,            HCI_VERSION_MASK_ALL,    (1<<0xd),              1<<7,              1<<9,                    "rtl8703cs_fw",         "rtl8703cs_config",     CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_40K}, //Rtl8703cs
+    {0x8821,            HCI_VERSION_MASK_ALL,    (1<<0xc),              CHIP_TYPE_MASK_ALL,  1<<10,                 "rtl8821cs_fw",         "rtl8821cs_config",     CONFIG_MAC_OFFSET_GEN_3PLUS,  MAX_PATCH_SIZE_40K}, //RTL8821CS
+/*  todo: RTL8703CS */
+
+    {LMP_SUBVERSION_NONE,HCI_VERSION_MASK_ALL,   HCI_REVISION_MASK_ALL, CHIP_TYPE_MASK_ALL, PROJECT_ID_MASK_ALL,    "rtl_none_fw",          "rtl_none_config",      CONFIG_MAC_OFFSET_GEN_1_2,  MAX_PATCH_SIZE_24K}
 };
 
 struct rtk_epatch_entry{
@@ -307,45 +311,46 @@ struct rtk_epatch{
 } __attribute__ ((packed));
 
 
-
-patch_info* get_patch_entry(uint16_t prod_id)
+int check_match_state(bt_hw_cfg_cb_t *cfg,uint32_t mask)
 {
-    patch_info  *patch_entry = NULL;
-    patch_entry = patch_table;
-    while (prod_id != patch_entry->prod_id)
-    {
-        if (0 == patch_entry->prod_id)
-            break;
+    patch_info  *patch_entry;
+    int res = 0;
 
-        patch_entry++;
+    for(patch_entry = patch_table; patch_entry->lmp_subversion != LMP_SUBVERSION_NONE; patch_entry++) {
+        if(patch_entry->lmp_subversion != cfg->lmp_subversion)
+            continue;
+        if((patch_entry->hci_version_mask!=HCI_VERSION_MASK_ALL)&&((patch_entry->hci_version_mask&(1<<cfg->hci_version))==0))
+             continue;
+        if((patch_entry->hci_revision_mask!=HCI_REVISION_MASK_ALL)&&((patch_entry->hci_revision_mask&(1<<cfg->hci_revision))==0))
+             continue;
+        if((mask&PATCH_OPTIONAL_MATCH_FLAG_CHIPTYPE)&&(patch_entry->chip_type_mask != CHIP_TYPE_MASK_ALL)&&((patch_entry->chip_type_mask&(1<<cfg->chip_type))==0))
+             continue;
+        res++;
     }
-    return patch_entry;
+    ALOGI( "check_match_state return %d(cfg->lmp_subversion:0x%x cfg->hci_vesion:0x%x cfg->hci_revision:0x%x cfg->chip_type:0x%x mask:%08x)\n",
+            res, cfg->lmp_subversion, cfg->hci_version, cfg->hci_revision, cfg->chip_type, mask);
+    return res;
 }
-
-/*******************************************************************************
-**
-** Function        ms_delay
-**
-** Description     sleep unconditionally for timeout milliseconds
-**
-** Returns         None
-**
-*******************************************************************************/
-void ms_delay (uint32_t timeout)
+patch_info* get_patch_entry(bt_hw_cfg_cb_t *cfg)
 {
-    struct timespec delay;
-    int err;
+    patch_info  *patch_entry;
 
-    if (timeout == 0)
-        return;
-
-    delay.tv_sec = timeout / 1000;
-    delay.tv_nsec = 1000 * 1000 * (timeout%1000);
-
-    /* [u]sleep can't be used because it uses SIGALRM */
-    do {
-        err = nanosleep(&delay, &delay);
-    } while (err < 0 && errno ==EINTR);
+    ALOGI("get_patch_entry(lmp_subversion:0x%x hci_vesion:0x%x cfg->hci_revision:0x%x chip_type:0x%x)\n",
+            cfg->lmp_subversion, cfg->hci_version, cfg->hci_revision, cfg->chip_type);
+    for(patch_entry = patch_table; patch_entry->lmp_subversion != LMP_SUBVERSION_NONE; patch_entry++) {
+        if(patch_entry->lmp_subversion != cfg->lmp_subversion)
+            continue;
+        if((patch_entry->hci_version_mask != HCI_VERSION_MASK_ALL)&&((patch_entry->hci_version_mask&(1<<cfg->hci_version)) == 0))
+             continue;
+        if((patch_entry->hci_revision_mask != HCI_REVISION_MASK_ALL)&&((patch_entry->hci_revision_mask&(1<<cfg->hci_revision)) == 0))
+             continue;
+        if((patch_entry->chip_type_mask != CHIP_TYPE_MASK_ALL)&&((patch_entry->chip_type_mask&(1<<cfg->chip_type)) == 0))
+             continue;
+        break;
+    }
+    ALOGI("get_patch_entry return(patch_name:%s config_name:%s mac_offset:0x%x)\n",
+            patch_entry->patch_name, patch_entry->config_name, patch_entry->mac_offset);
+    return patch_entry;
 }
 
 /*******************************************************************************
@@ -526,7 +531,146 @@ static uint8_t hw_config_set_controller_baudrate(HC_BT_HDR *p_buf, uint32_t baud
     return (retval);
 }
 
-uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint8_t bt_addr[6])
+static int getmacaddr(unsigned char * addr)
+{
+    int i = 0;
+    char data[256], *str;
+    int addr_fd;
+
+    if ((addr_fd = open("/data/misc/bluetooth/bdaddr", O_RDONLY)) != -1)
+    {
+        memset(data, 0, sizeof(data));
+        read(addr_fd, data, 17);
+        for (i = 0,str = data; i < 6; i++) {
+           addr[5-i] = (unsigned char)strtoul(str, &str, 16);
+           str++;
+        }
+        close(addr_fd);
+        return 0;
+    }
+    return -1;
+}
+
+static inline int getAltSettings(patch_info *patch_entry, unsigned short *offset, int max_group_cnt)
+{
+    int n = 0;
+    if(patch_entry)
+        offset[n++] = patch_entry->mac_offset;
+/*
+//sample code, add special settings
+
+    offset[n++] = 0x15B;
+*/
+    return n;
+}
+static inline int getAltSettingVal(patch_info *patch_entry, unsigned short offset, unsigned char * val)
+{
+    int res = 0;
+
+    switch(offset)
+    {
+/*
+//sample code, add special settings
+        case 0x15B:
+            val[0] = 0x0B;
+            val[1] = 0x0B;
+            val[2] = 0x0B;
+            val[3] = 0x0B;
+            res = 4;
+            break;
+*/
+        default:
+            res = 0;
+            break;
+    }
+    if((patch_entry)&&(offset == patch_entry->mac_offset)&&(res == 0))
+    {
+        if(getmacaddr(val) == 0){
+            ALOGI("MAC: %02x:%02x:%02x:%02x:%02x:%02x", val[5], val[4], val[3], val[2], val[1], val[0]);
+            res = 6;
+        }
+    }
+    return res;
+}
+
+void rtk_update_altsettings(patch_info *patch_entry, unsigned char* config_buf_ptr, size_t *config_len_ptr)
+{
+    unsigned short offset[256], data_len;
+    unsigned char val[256];
+
+    struct rtk_bt_vendor_config* config = (struct rtk_bt_vendor_config*) config_buf_ptr;
+    struct rtk_bt_vendor_config_entry* entry = config->entry;
+    size_t config_len = *config_len_ptr;
+    int count = 0,temp = 0, i = 0, j;
+
+    ALOGI("ORG Config len=%08x:\n", config_len);
+    for(i=0;i<=config_len;i+=0x10)
+    {
+        ALOGI("%08x: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", i, \
+            config_buf_ptr[i], config_buf_ptr[i+1], config_buf_ptr[i+2], config_buf_ptr[i+3], config_buf_ptr[i+4], config_buf_ptr[i+5], config_buf_ptr[i+6], config_buf_ptr[i+7], \
+            config_buf_ptr[i+8], config_buf_ptr[i+9], config_buf_ptr[i+10], config_buf_ptr[i+11], config_buf_ptr[i+12], config_buf_ptr[i+13], config_buf_ptr[i+14], config_buf_ptr[i+15]);
+    }
+
+    memset(offset, 0, sizeof(offset));
+    memset(val, 0, sizeof(val));
+    data_len = le16_to_cpu(config->data_len);
+
+    count = getAltSettings(patch_entry, offset, sizeof(offset)/sizeof(unsigned short));
+    if(count <= 0){
+        ALOGI("rtk_update_altsettings: No AltSettings");
+        return;
+    }else{
+        ALOGI("rtk_update_altsettings: %d AltSettings", count);
+    }
+
+    if (data_len != config_len - sizeof(struct rtk_bt_vendor_config))
+    {
+        ALOGE("rtk_update_altsettings: config len(%x) is not right(%x)", data_len, config_len-sizeof(struct rtk_bt_vendor_config));
+        return;
+    }
+
+    for (i=0; i<data_len;)
+    {
+        for(j = 0; j < count;j++)
+        {
+            if(le16_to_cpu(entry->offset) == offset[j])
+                offset[j] = 0;
+        }
+        if(getAltSettingVal(patch_entry, le16_to_cpu(entry->offset), val) == entry->entry_len){
+            ALOGI("rtk_update_altsettings: replace %04x[%02x]", le16_to_cpu(entry->offset), entry->entry_len);
+            memcpy(entry->entry_data, val, entry->entry_len);
+        }
+        temp = entry->entry_len + sizeof(struct rtk_bt_vendor_config_entry);
+        i += temp;
+        entry = (struct rtk_bt_vendor_config_entry*)((uint8_t*)entry + temp);
+    }
+    for(j = 0; j < count;j++){
+        if(offset[j] == 0)
+            continue;
+        entry->entry_len = getAltSettingVal(patch_entry, offset[j], val);
+        if(entry->entry_len <= 0)
+            continue;
+        entry->offset = cpu_to_le16(offset[j]);
+        memcpy(entry->entry_data, val, entry->entry_len);
+        ALOGI("rtk_update_altsettings: add %04x[%02x]", le16_to_cpu(entry->offset), entry->entry_len);
+        temp = entry->entry_len + sizeof(struct rtk_bt_vendor_config_entry);
+        i += temp;
+        entry = (struct rtk_bt_vendor_config_entry*)((uint8_t*)entry + temp);
+    }
+    config->data_len = cpu_to_le16(i);
+    *config_len_ptr = i+sizeof(struct rtk_bt_vendor_config);
+
+    ALOGI("NEW Config len=%08x:\n", *config_len_ptr);
+    for(i=0;i<=(*config_len_ptr);i+=0x10)
+    {
+        ALOGI("%08x: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", i, \
+            config_buf_ptr[i], config_buf_ptr[i+1], config_buf_ptr[i+2], config_buf_ptr[i+3], config_buf_ptr[i+4], config_buf_ptr[i+5], config_buf_ptr[i+6], config_buf_ptr[i+7], \
+            config_buf_ptr[i+8], config_buf_ptr[i+9], config_buf_ptr[i+10], config_buf_ptr[i+11], config_buf_ptr[i+12], config_buf_ptr[i+13], config_buf_ptr[i+14], config_buf_ptr[i+15]);
+    }
+    return;
+}
+
+uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint8_t bt_addr[6], uint16_t mac_offset)
 {
     struct rtk_bt_vendor_config* config = (struct rtk_bt_vendor_config*) *config_buf;
     uint16_t config_len = le16_to_cpu(config->data_len), temp = 0;
@@ -538,13 +682,13 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
 
     if (le32_to_cpu(config->signature) != RTK_VENDOR_CONFIG_MAGIC)
     {
-        ALOGE("config signature magic number(%x) is not set to RTK_VENDOR_CONFIG_MAGIC", config->signature);
+        ALOGE("config signature magic number(0x%x) is not set to RTK_VENDOR_CONFIG_MAGIC", config->signature);
         return 0;
     }
 
     if (config_len != *filelen - sizeof(struct rtk_bt_vendor_config))
     {
-        ALOGE("config len(%x) is not right(%x)", config_len, *filelen-sizeof(struct rtk_bt_vendor_config));
+        ALOGE("config len(0x%x) is not right(0x%x)", config_len, *filelen-sizeof(struct rtk_bt_vendor_config));
         return 0;
     }
 
@@ -552,24 +696,6 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
     {
         switch(le16_to_cpu(entry->offset))
         {
-#if (USE_CONTROLLER_BDADDR == FALSE)
-
-            case 0x44:
-			case 0x3c:
-            {
-				if(hw_cfg_cb.lmp_version != ROM_LMP_8703b  ){
-					if(le16_to_cpu(entry->offset) == 0x44){
-						break;
-					}
-				}
-                config_has_bdaddr = 1;
-                int j=0;
-                for (j=0; j<entry->entry_len; j++)
-                    entry->entry_data[j] = bt_addr[entry->entry_len - 1- j];
-                ALOGI("rtk_parse_config_file: DO NOT USE_CONTROLLER_BDADDR, config has bdaddr");
-                break;
-            }
-#endif
             case 0xc:
             {
                 p = (uint8_t *)entry->entry_data;
@@ -581,49 +707,39 @@ uint32_t rtk_parse_config_file(unsigned char** config_buf, size_t* filelen, uint
                         hw_cfg_cb.hw_flow_cntrl |= 1; /* bit0 enable hw flow control */
                 }
 
-                ALOGI("config baud rate to :%08x, hwflowcontrol:%x, %x", baudrate, entry->entry_data[12], hw_cfg_cb.hw_flow_cntrl);
+                ALOGI("config baud rate to :0x%08x, hwflowcontrol:0x%x, 0x%x", baudrate, entry->entry_data[12], hw_cfg_cb.hw_flow_cntrl);
                 break;
             }
+#if (USE_CONTROLLER_BDADDR == FALSE)
+            case 0x44:
+            case 0x3c:
+            {
+                 config_has_bdaddr = 1;
+                 int j=0;
+                 for (j=0; j<entry->entry_len; j++)
+                     entry->entry_data[j] = bt_addr[entry->entry_len - 1- j];
+                 ALOGI("rtk_parse_config_file: DO NOT USE_CONTROLLER_BDADDR, config has bdaddr");
+                 ALOGI("rtk_parse_config_file : CONFIG_ADDR is: %02X:%02X:%02X:%02X:%02X:%02X",
+                    bt_addr[0], bt_addr[1],
+                    bt_addr[2], bt_addr[3],
+                    bt_addr[4], bt_addr[5]);
+                 break;
+            }
+#endif
             default:
-                ALOGI("config offset(%x),length(%x)", entry->offset, entry->entry_len);
+                ALOGI("config offset(0x%x),length(0x%x)", entry->offset, entry->entry_len);
                 break;
         }
         temp = entry->entry_len + sizeof(struct rtk_bt_vendor_config_entry);
         i += temp;
         entry = (struct rtk_bt_vendor_config_entry*)((uint8_t*)entry + temp);
     }
-#if(USE_CONTROLLER_BDADDR == FALSE)
-    if(!config_has_bdaddr)
-    {
-        ALOGI("rtk_parse_config_file: DO NOT USE_CONTROLLER_BDADDR, config has no bdaddr");
-		ALOGI("rtk_parse_config_file : CONFIG_ADDR is: %02X:%02X:%02X:%02X:%02X:%02X",
-        bt_addr[0], bt_addr[1],
-        bt_addr[2], bt_addr[3],
-        bt_addr[4], bt_addr[5]);
-        *config_buf = realloc(*config_buf, *filelen+9);
-        ((struct rtk_bt_vendor_config*)*config_buf)->data_len += 9;
-		if(hw_cfg_cb.lmp_version == ROM_LMP_8703b){
-        	*((char*)*config_buf + *filelen) = 0x44;
-		}else {
-			*((char*)*config_buf + *filelen) = 0x3c;
-		}
-        *((char*)*config_buf + *filelen + 1) = 0x00;
-        *((char*)*config_buf + *filelen + 2) = 0x06;
-        *((char*)*config_buf + *filelen + 3) = bt_addr[5];
-        *((char*)*config_buf + *filelen + 4) = bt_addr[4];
-        *((char*)*config_buf + *filelen + 5) = bt_addr[3];
-        *((char*)*config_buf + *filelen + 6) = bt_addr[2];
-        *((char*)*config_buf + *filelen + 7) = bt_addr[1];
-        *((char*)*config_buf + *filelen + 8) = bt_addr[0];
-        *filelen += 9;
-    }
-#endif
 
     return baudrate;
 }
 
 uint32_t rtk_get_bt_config(unsigned char** config_buf,
-        uint32_t* config_baud_rate, char * config_file_short_name)
+        uint32_t* config_baud_rate, char * config_file_short_name, uint16_t mac_offset)
 {
     char bt_config_file_name[PATH_MAX] = {0};
     struct stat st;
@@ -641,6 +757,11 @@ uint32_t rtk_get_bt_config(unsigned char** config_buf,
     }
 
     filelen = st.st_size;
+    if(filelen > MAX_ORG_CONFIG_SIZE)
+    {
+        ALOGE("bt config file is too large(>0x%04x)", MAX_ORG_CONFIG_SIZE);
+        return -1;
+    }
 
     if ((fd = open(bt_config_file_name, O_RDONLY)) < 0)
     {
@@ -648,9 +769,10 @@ uint32_t rtk_get_bt_config(unsigned char** config_buf,
         return -1;
     }
 
-    if ((*config_buf = malloc(filelen)) == NULL)
+    if ((*config_buf = malloc(MAX_ORG_CONFIG_SIZE+MAX_ALT_CONFIG_SIZE)) == NULL)
     {
-        ALOGE("malloc buffer for config file fail(%x)\n", filelen);
+        ALOGE("malloc buffer for config file fail(0x%x)\n", filelen);
+        close(fd);
         return -1;
     }
 
@@ -662,8 +784,8 @@ uint32_t rtk_get_bt_config(unsigned char** config_buf,
         return -1;
     }
 
-    *config_baud_rate = rtk_parse_config_file(config_buf, &filelen, vnd_local_bd_addr);
-    ALOGI("Get config baud rate from config file:%x", *config_baud_rate);
+    *config_baud_rate = rtk_parse_config_file(config_buf, &filelen, vnd_local_bd_addr, mac_offset);
+    ALOGI("Get config baud rate from config file:0x%x", *config_baud_rate);
 
     close(fd);
     return filelen;
@@ -802,7 +924,7 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
     struct rtk_epatch *patch = (struct rtk_epatch *)cfg_cb->fw_buf;
     int iBtCalLen = 0;
 
-    if(cfg_cb->lmp_version == ROM_LMP_8723a)
+    if(cfg_cb->lmp_subversion == LMPSUBVERSION_8723a)
     {
         if(memcmp(cfg_cb->fw_buf, RTK_EPATCH_SIGNATURE, 8) == 0)
         {
@@ -847,14 +969,10 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
 
     proj_id = rtk_get_fw_project_id(cfg_cb->fw_buf + cfg_cb->fw_len - 5);
 
-#if RTK_8703A_SUPPORT
-    if((cfg_cb->hci_version != 4)&&(cfg_cb->lmp_version != project_id[proj_id]))
-#else
-    if(cfg_cb->lmp_version != ROM_LMP_8703b && cfg_cb->lmp_version != project_id[proj_id])
-#endif
+    if((hw_cfg_cb.project_id_mask != PROJECT_ID_MASK_ALL)&& ((hw_cfg_cb.project_id_mask&(1<<proj_id)) ==0))
     {
-        ALOGE("lmp_version is %x, project_id is %x, does not match!!!",
-                        cfg_cb->lmp_version, project_id[proj_id]);
+        ALOGE("hw_cfg_cb.project_id_mask is 0x%08x, fw project_id is %d, does not match!!!",
+                        hw_cfg_cb.project_id_mask, proj_id);
         cfg_cb->dl_fw_flag = 0;
         goto free_buf;
     }
@@ -884,10 +1002,9 @@ void rtk_get_bt_final_patch(bt_hw_cfg_cb_t* cfg_cb)
         memcpy(cfg_cb->total_buf + entry->patch_length - 4, &patch->fw_version, 4);
         memcpy(&entry->svn_version, cfg_cb->total_buf + entry->patch_length - 8, 4);
         memcpy(&entry->coex_version, cfg_cb->total_buf + entry->patch_length - 12, 4);
-        ALOGI("fw svn_version = %05d", entry->svn_version);
-        ALOGI("BTCOEX20%06d-%04x",
+        ALOGI("BTCOEX:20%06d-%04x svn_version:%d lmp_subversion:0x%x hci_version:0x%x hci_revision:0x%x chip_type:%d Cut:%d libbt-vendor_uart version:%s\n",
         ((entry->coex_version >> 16) & 0x7ff) + ((entry->coex_version >> 27) * 10000),
-        (entry->coex_version & 0xffff));
+        (entry->coex_version & 0xffff), entry->svn_version, cfg_cb->lmp_subversion, cfg_cb->hci_version, cfg_cb->hci_revision, cfg_cb->chip_type, cfg_cb->eversion+1, RTK_VERSION);
     }
 
     if (cfg_cb->config_len)
@@ -934,6 +1051,11 @@ static int hci_download_patch_h4(HC_BT_HDR *p_buf, int index, uint8_t *data, int
     return retval;
 }
 
+uint16_t getLmp_subversion()
+{
+    return hw_cfg_cb.lmp_subversion;
+}
+
 /*******************************************************************************
 **
 ** Function         hw_config_cback
@@ -963,9 +1085,22 @@ void hw_config_cback(void *p_mem)
     if(p_mem != NULL)
     {
         p_evt_buf = (HC_BT_HDR *) p_mem;
-        status = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE);
-        p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE;
+        status = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_OFFSET);
+        p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE_OFFSET;
         STREAM_TO_UINT16(opcode,p);
+    }
+
+    if(opcode == HCI_VSC_H5_INIT) {
+        if(status != 0) {
+          ALOGE("%s, status = %d", __func__, status);
+          if ((bt_vendor_cbacks) && (p_evt_buf != NULL))
+          bt_vendor_cbacks->dealloc(p_evt_buf);
+          if(rtkbt_auto_restart) {
+              bt_vendor_cbacks->fwcfg_cb(BT_VND_OP_RESULT_FAIL);
+              kill(getpid(), SIGKILL);
+          }
+          return;
+        }
     }
 
     /* Ask a new buffer big enough to hold any HCI commands sent in here */
@@ -980,7 +1115,7 @@ void hw_config_cback(void *p_mem)
         p_buf->len = 0;
         p_buf->layer_specific = 0;
 
-        ALOGI("hw_cfg_cb.state = %i", hw_cfg_cb.state);
+        BTVNDDBG("hw_cfg_cb.state = %i", hw_cfg_cb.state);
         switch (hw_cfg_cb.state)
         {
             case HW_CFG_H5_INIT:
@@ -990,26 +1125,29 @@ void hw_config_cback(void *p_mem)
                 *p++ = 0;
                 p_buf->len = HCI_CMD_PREAMBLE_SIZE;
 
-                hw_cfg_cb.state = HW_CFG_READ_LMP_VER;
+                hw_cfg_cb.state = HW_CFG_READ_LOCAL_VER;
                 is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_READ_LMP_VERSION, p_buf, hw_config_cback);
                 break;
             }
-            case HW_CFG_READ_LMP_VER:
+            case HW_CFG_READ_LOCAL_VER:
             {
                 if (status == 0)
                 {
-                    hw_cfg_cb.hci_version = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_HCI_VERSION);
-                    p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_LPM_VERSION;
-                    STREAM_TO_UINT16(hw_cfg_cb.lmp_version, p);
-                    ALOGI("lmp_version = %x", hw_cfg_cb.lmp_version);
-                    if(hw_cfg_cb.lmp_version == ROM_LMP_8723a)
+                    p = ((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OP1001_HCI_VERSION_OFFSET);
+                    STREAM_TO_UINT16(hw_cfg_cb.hci_version, p);
+                    p = ((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OP1001_HCI_REVISION_OFFSET);
+                    STREAM_TO_UINT16(hw_cfg_cb.hci_revision, p);
+                    p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OP1001_LMP_SUBVERSION_OFFSET;
+                    STREAM_TO_UINT16(hw_cfg_cb.lmp_subversion, p);
+                    BTVNDDBG("lmp_subversion = 0x%x hw_cfg_cb.hci_version = 0x%x hw_cfg_cb.hci_revision = 0x%x", hw_cfg_cb.lmp_subversion, hw_cfg_cb.hci_version, hw_cfg_cb.hci_revision);
+                    if(hw_cfg_cb.lmp_subversion == LMPSUBVERSION_8723a)
                     {
                         hw_cfg_cb.state = HW_CFG_START;
                         goto CFG_START;
                     }
                     else
                     {
-                        hw_cfg_cb.state = HW_CFG_READ_ROM_VER;
+                        hw_cfg_cb.state = HW_CFG_READ_ECO_VER;
                         p = (uint8_t *) (p_buf + 1);
                         UINT16_TO_STREAM(p, HCI_VSC_READ_ROM_VERSION);
                         *p++ = 0;
@@ -1019,11 +1157,12 @@ void hw_config_cback(void *p_mem)
                 }
                 break;
             }
-            case HW_CFG_READ_ROM_VER:
+            case HW_CFG_READ_ECO_VER:
             {
                 if(status == 0)
                 {
-                    hw_cfg_cb.eversion = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_ROM_VERSION);
+                    hw_cfg_cb.eversion = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPFC6D_EVERSION_OFFSET);
+                    BTVNDDBG("hw_config_cback chip_id of the IC:%d", hw_cfg_cb.eversion+1);
                 }
                 else if(1 == status)
                 {
@@ -1035,7 +1174,7 @@ void hw_config_cback(void *p_mem)
                     break;
                 }
 
-                if (hw_cfg_cb.lmp_version == ROM_LMP_8703b)
+                if(check_match_state(&hw_cfg_cb, 0) > 1)    // check if have multiple matched patch_entry by lmp_subversion,hci_version, hci_revision
                 {
                     hw_cfg_cb.state = HW_CFG_READ_CHIP_TYPE;
                      p = (uint8_t *) (p_buf + 1);
@@ -1047,7 +1186,7 @@ void hw_config_cback(void *p_mem)
 
                     pp = (uint8_t *) (p_buf + 1);
                     for (i = 0; i < p_buf->len; i++)
-                    ALOGI("get chip type command data[%d]= %x", i, *(pp+i));
+                        BTVNDDBG("get chip type command data[%d]= 0x%x", i, *(pp+i));
 
                     is_proceeding = bt_vendor_cbacks->xmit_cb(HCI_VSC_READ_CHIP_TYPE, p_buf, hw_config_cback);
                     break;
@@ -1060,20 +1199,26 @@ void hw_config_cback(void *p_mem)
             }
             case HW_CFG_READ_CHIP_TYPE:
             {
-                 ALOGI("get chip status = %d", status);
-                 ALOGI("get chip length = %d", p_evt_buf->len);
-                 p = (uint8_t *)(p_evt_buf + 1) ;
-                 for (i = 0; i < p_evt_buf->len; i++)
-                    ALOGI("get chip event data[%d]= %x", i, *(p+i));
+                BTVNDDBG("READ_CHIP_TYPE status = %d, length = %d", status, p_evt_buf->len);
+                p = (uint8_t *)(p_evt_buf + 1) ;
+                for (i = 0; i < p_evt_buf->len; i++)
+                    BTVNDDBG("READ_CHIP_TYPE event data[%d]= 0x%x", i, *(p+i));
                 if(status == 0)
                 {
-                    hw_cfg_cb.chip_type = ((*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_ROM_VERSION))&0x0F);
-                    ALOGE("get chip hw_cfg_cb.lmp_version = %d", hw_cfg_cb.lmp_version);
-                    ALOGE("get chip hw_cfg_cb.hci_version = %d", hw_cfg_cb.hci_version);
-                    ALOGE("get chip hw_cfg_cb.chip_type = %d", hw_cfg_cb.chip_type);
+                    hw_cfg_cb.chip_type = ((*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPFC61_CHIPTYPE_OFFSET))&0x0F);
+                    BTVNDDBG("READ_CHIP_TYPE hw_cfg_cb.lmp_subversion = 0x%x", hw_cfg_cb.lmp_subversion);
+                    BTVNDDBG("READ_CHIP_TYPE hw_cfg_cb.hci_version = 0x%x", hw_cfg_cb.hci_version);
+                    BTVNDDBG("READ_CHIP_TYPE hw_cfg_cb.hci_revision = 0x%x", hw_cfg_cb.hci_revision);
+                    BTVNDDBG("READ_CHIP_TYPE hw_cfg_cb.chip_type = 0x%x", hw_cfg_cb.chip_type);
                 }
                 else
                 {
+                    is_proceeding = FALSE;
+                    break;
+                }
+                if(check_match_state(&hw_cfg_cb, PATCH_OPTIONAL_MATCH_FLAG_CHIPTYPE) > 1)  // check if have multiple matched patch_entry by lmp_subversion,hci_version, hci_revision and chiptype
+                {
+                    BTVNDDBG("check_match_state(lmp_subversion:0x%04x, hci_version:%d, hci_revision:%d chip_type:%d): Multi Matched Patch\n", hw_cfg_cb.lmp_subversion, hw_cfg_cb.hci_version, hw_cfg_cb.hci_revision, hw_cfg_cb.chip_type);
                     is_proceeding = FALSE;
                     break;
                 }
@@ -1082,55 +1227,53 @@ void hw_config_cback(void *p_mem)
 CFG_START:
             case HW_CFG_START:
             {
-                //get efuse config file and patch code file
-#if RTK_8703A_SUPPORT
-                if((hw_cfg_cb.hci_version == 4)&&(hw_cfg_cb.lmp_version == ROM_LMP_8723b))
+#ifdef BT_CHIP_PROBE_SIMULATION
                 {
-                    ALOGI("Hci_EVersion = 4,IC is: ROM_LMP_8703a");
-                    prtk_patch_file_info = get_patch_entry(ROM_LMP_8703a);
-                }else
-#endif
-                    prtk_patch_file_info = get_patch_entry(hw_cfg_cb.lmp_version);
-
-                if (hw_cfg_cb.lmp_version == ROM_LMP_8703b)
-                {
-                    if (hw_cfg_cb.chip_type == CHIP_8703BS)
+                    int ii;
+                    memcpy(&hw_cfg_test, &hw_cfg_cb, sizeof(hw_cfg_test));
+                    for(i=0;i<sizeof(bt_chip_chars)/sizeof(bt_chip_chars[0]);i++)
                     {
-                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8703b);
-                    }
-                    else if (hw_cfg_cb.chip_type == CHIP_RTL8723CS_XX)
-                    {
-                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_xx);
-                    }
-                    else if (hw_cfg_cb.chip_type == CHIP_8723CS_CG)
-                    {
-                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_cg);
-                    }
-                    else if (hw_cfg_cb.chip_type == CHIP_8723CS_VF)
-                    {
-                        prtk_patch_file_info = get_patch_entry(ROM_LMP_8723cs_vf);
-                    }
-                    else
-                    {
-                        ALOGE("get chip type error");
-                        is_proceeding = FALSE;
-                        break;
+                        BTVNDDBG("BT_CHIP_PROBE_SIMULATION loop:%d $$$ BEGIN $$$\n", i);
+                        hw_cfg_test.lmp_subversion = bt_chip_chars[i].lmp_subversion;
+                        hw_cfg_test.hci_version = bt_chip_chars[i].hci_version;
+                        hw_cfg_test.hci_revision = bt_chip_chars[i].hci_revision;
+                        hw_cfg_test.chip_type = CHIPTYPE_NONE;
+                        if(check_match_state(&hw_cfg_test, 0) > 1){
+                            BTVNDDBG("check_match_state hw_cfg_test(lmp_subversion:0x%04x, hci_version:%d, hci_revision:%d chip_type:%d): Multi Matched Patch\n", hw_cfg_test.lmp_subversion, hw_cfg_test.hci_version, hw_cfg_test.hci_revision, hw_cfg_test.chip_type);
+                            if(bt_chip_chars[i].chip_type != CHIPTYPE_NONE){
+                                BTVNDDBG("BT_CHIP_PROBE_SIMULATION loop:%d *** Include ChipType ***\n", i);
+                                hw_cfg_test.chip_type = bt_chip_chars[i].chip_type;
+                                if(check_match_state(&hw_cfg_test, PATCH_OPTIONAL_MATCH_FLAG_CHIPTYPE) > 1){
+                                    BTVNDDBG("check_match_state hw_cfg_test(lmp_subversion:0x%04x, hci_version:%d, hci_revision:%d chip_type:%d): Multi Matched Patch\n", hw_cfg_test.lmp_subversion, hw_cfg_test.hci_version, hw_cfg_test.hci_revision, hw_cfg_test.chip_type);
+                                }else{
+                                    prtk_patch_file_info = get_patch_entry(&hw_cfg_test);
+                                }
+                            }
+                        }else{
+                            prtk_patch_file_info = get_patch_entry(&hw_cfg_test);
+                        }
+                        BTVNDDBG("BT_CHIP_PROBE_SIMULATION loop:%d $$$ END $$$\n", i);
                     }
                 }
+#endif
+                //get efuse config file and patch code file
+                prtk_patch_file_info = get_patch_entry(&hw_cfg_cb);
 
-                if((prtk_patch_file_info == NULL) || (prtk_patch_file_info->prod_id == 0))
+
+                if((prtk_patch_file_info == NULL) || (prtk_patch_file_info->lmp_subversion == 0))
                 {
                     ALOGE("get patch entry error");
                     is_proceeding = FALSE;
                     break;
                 }
-
-                hw_cfg_cb.config_len = rtk_get_bt_config(&hw_cfg_cb.config_buf, &hw_cfg_cb.baudrate, prtk_patch_file_info->config_name);
+                hw_cfg_cb.max_patch_size = prtk_patch_file_info->max_patch_size;
+                hw_cfg_cb.config_len = rtk_get_bt_config(&hw_cfg_cb.config_buf, &hw_cfg_cb.baudrate, prtk_patch_file_info->config_name, prtk_patch_file_info->mac_offset);
                 if (hw_cfg_cb.config_len < 0)
                 {
                     ALOGE("Get Config file fail, just use efuse settings");
                     hw_cfg_cb.config_len = 0;
                 }
+                rtk_update_altsettings(prtk_patch_file_info, hw_cfg_cb.config_buf, &(hw_cfg_cb.config_len));
 
                 hw_cfg_cb.fw_len = rtk_get_bt_firmware(&hw_cfg_cb.fw_buf, prtk_patch_file_info->patch_name);
                 if (hw_cfg_cb.fw_len < 0)
@@ -1138,12 +1281,14 @@ CFG_START:
                     ALOGE("Get BT firmware fail");
                     hw_cfg_cb.fw_len = 0;
                 }
-                else
+                else{
+                    hw_cfg_cb.project_id_mask = prtk_patch_file_info->project_id_mask;
                     rtk_get_bt_final_patch(&hw_cfg_cb);
-
-                if (hw_cfg_cb.total_len > RTK_PATCH_LENGTH_MAX)
+                }
+                BTVNDDBG("Check total_len(0x%08x) max_patch_size(0x%08x)", hw_cfg_cb.total_len, hw_cfg_cb.max_patch_size);
+                if (hw_cfg_cb.total_len > hw_cfg_cb.max_patch_size)
                 {
-                    ALOGE("total length of fw&config larger than allowed");
+                    ALOGE("total length of fw&config(0x%08x) larger than max_patch_size(0x%08x)", hw_cfg_cb.total_len, hw_cfg_cb.max_patch_size);
                     is_proceeding = FALSE;
                     break;
                 }
@@ -1156,7 +1301,7 @@ CFG_START:
                         hw_cfg_cb.patch_frag_cnt += 1;
                     else
                         hw_cfg_cb.patch_frag_tail = PATCH_DATA_FIELD_MAX_SIZE;
-                    ALOGI("patch fragment count %d, tail len %d", hw_cfg_cb.patch_frag_cnt, hw_cfg_cb.patch_frag_tail);
+                    BTVNDDBG("patch fragment count %d, tail len %d", hw_cfg_cb.patch_frag_cnt, hw_cfg_cb.patch_frag_tail);
                 }
                 else
                 {
@@ -1166,19 +1311,19 @@ CFG_START:
 
                 if ((hw_cfg_cb.baudrate == 0) && ((hw_cfg_cb.hw_flow_cntrl & 0x80) == 0))
                 {
-                    ALOGI("no baudrate to set and no need to set hw flow control");
+                    BTVNDDBG("no baudrate to set and no need to set hw flow control");
                     goto DOWNLOAD_FW;
                 }
 
                 if ((hw_cfg_cb.baudrate == 0) && (hw_cfg_cb.hw_flow_cntrl & 0x80))
                 {
-                    ALOGI("no baudrate to set but set hw flow control is needed");
+                    BTVNDDBG("no baudrate to set but set hw flow control is needed");
                     goto SET_HW_FLCNTRL;
                 }
             }
             /* fall through intentionally */
             case HW_CFG_SET_UART_BAUD_CONTROLLER:
-                ALOGI("bt vendor lib: set CONTROLLER UART baud %x", hw_cfg_cb.baudrate);
+                BTVNDDBG("bt vendor lib: set CONTROLLER UART baud 0x%x", hw_cfg_cb.baudrate);
                 hw_cfg_cb.state = HW_CFG_SET_UART_BAUD_HOST;
                 is_proceeding = hw_config_set_controller_baudrate(p_buf, hw_cfg_cb.baudrate);
                 break;
@@ -1186,7 +1331,7 @@ CFG_START:
             case HW_CFG_SET_UART_BAUD_HOST:
                 /* update baud rate of host's UART port */
                 rtk_speed_to_uart_speed(hw_cfg_cb.baudrate, &host_baudrate);
-                ALOGI("bt vendor lib: set HOST UART baud %i", host_baudrate);
+                BTVNDDBG("bt vendor lib: set HOST UART baud %i", host_baudrate);
                 userial_vendor_set_baud(line_speed_to_userial_baud(host_baudrate));
 
                 if((hw_cfg_cb.hw_flow_cntrl & 0x80) == 0)
@@ -1194,7 +1339,7 @@ CFG_START:
 
 SET_HW_FLCNTRL:
             case HW_CFG_SET_UART_HW_FLOW_CONTROL:
-                ALOGI("Change HW flowcontrol setting");
+                BTVNDDBG("Change HW flowcontrol setting");
                 if(hw_cfg_cb.hw_flow_cntrl & 0x01)
                 {
                     userial_vendor_set_hw_fctrl(1);
@@ -1208,18 +1353,18 @@ SET_HW_FLCNTRL:
 
 DOWNLOAD_FW:
             case HW_CFG_DL_FW_PATCH:
-                ALOGI("bt vendor lib: HW_CFG_DL_FW_PATCH status:%i, opcode:%x", status, opcode);
+                BTVNDDBG("bt vendor lib: HW_CFG_DL_FW_PATCH status:%i, opcode:0x%x", status, opcode);
 
                 //recv command complete event for patch code download command
                 if(opcode == HCI_VSC_DOWNLOAD_FW_PATCH)
                 {
-                    iIndexRx = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE + 1);
-                    ALOGI("bt vendor lib: HW_CFG_DL_FW_PATCH status:%i, iIndexRx:%i", status, iIndexRx);
+                    iIndexRx = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_OFFSET + 1);
+                    BTVNDDBG("bt vendor lib: HW_CFG_DL_FW_PATCH status:%i, iIndexRx:%i", status, iIndexRx);
                     hw_cfg_cb.patch_frag_idx++;
 
                     if(iIndexRx&0x80)
                     {
-                        ALOGI("vendor lib fwcfg completed");
+                        BTVNDDBG("vendor lib fwcfg completed");
                         free(hw_cfg_cb.total_buf);
                         hw_cfg_cb.total_len = 0;
 
@@ -1234,21 +1379,22 @@ DOWNLOAD_FW:
 
                 if (hw_cfg_cb.patch_frag_idx < hw_cfg_cb.patch_frag_cnt)
                 {
+                    iIndexRx = hw_cfg_cb.patch_frag_idx?((hw_cfg_cb.patch_frag_idx-1)%0x7f+1):0;
                     if (hw_cfg_cb.patch_frag_idx == hw_cfg_cb.patch_frag_cnt - 1)
                     {
-                        ALOGI("HW_CFG_DL_FW_PATCH: send last fw fragment");
-                        hw_cfg_cb.patch_frag_idx |= 0x80;
+                        BTVNDDBG("HW_CFG_DL_FW_PATCH: send last fw fragment");
+                        iIndexRx |= 0x80;
                         hw_cfg_cb.patch_frag_len = hw_cfg_cb.patch_frag_tail;
                     }
                     else
                     {
-                        hw_cfg_cb.patch_frag_idx &= 0x7F;
+                        iIndexRx &= 0x7F;
                         hw_cfg_cb.patch_frag_len = PATCH_DATA_FIELD_MAX_SIZE;
                     }
                 }
 
-                is_proceeding = hci_download_patch_h4(p_buf, hw_cfg_cb.patch_frag_idx,
-                                    hw_cfg_cb.total_buf+(hw_cfg_cb.patch_frag_idx&0x7F)*PATCH_DATA_FIELD_MAX_SIZE,
+                is_proceeding = hci_download_patch_h4(p_buf, iIndexRx,
+                                    hw_cfg_cb.total_buf+(hw_cfg_cb.patch_frag_idx*PATCH_DATA_FIELD_MAX_SIZE),
                                     hw_cfg_cb.patch_frag_len);
                 break;
 
@@ -1311,7 +1457,7 @@ void hw_lpm_ctrl_cback(void *p_mem)
     HC_BT_HDR *p_evt_buf = (HC_BT_HDR *) p_mem;
     bt_vendor_op_result_t status = BT_VND_OP_RESULT_FAIL;
 
-    if (*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE) == 0)
+    if (*((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_OFFSET) == 0)
     {
         status = BT_VND_OP_RESULT_SUCCESS;
     }
@@ -1338,18 +1484,55 @@ void hw_lpm_ctrl_cback(void *p_mem)
 ** Returns         None
 **
 *******************************************************************************/
-void hw_config_start(void)
+void hw_config_start(char transtype)
 {
     memset(&hw_cfg_cb, 0, sizeof(bt_hw_cfg_cb_t));
     hw_cfg_cb.dl_fw_flag = 1;
+    hw_cfg_cb.chip_type = CHIPTYPE_NONE;
+    BTVNDDBG("RTKBT_RELEASE_NAME: %s",RTKBT_RELEASE_NAME);
+    BTVNDDBG("\nRealtek libbt-vendor_uart Version %s \n",RTK_VERSION);
+    HC_BT_HDR  *p_buf = NULL;
+    uint8_t     *p;
 
-    /* Start from sending H5 SYNC */
+    BTVNDDBG("hw_config_start, transtype = 0x%x \n", transtype);
+    /* Start from sending H5 INIT */
     if (bt_vendor_cbacks)
     {
-        hw_cfg_cb.state = HW_CFG_H5_INIT;
-        ALOGI("hw_config_start:Realtek version %s \n",RTK_VERSION);
-        bt_vendor_cbacks->xmit_cb(HCI_VSC_H5_INIT, NULL, hw_config_cback);
+        /* Must allocate command buffer via HC's alloc API */
+        p_buf = (HC_BT_HDR *) bt_vendor_cbacks->alloc(BT_HC_HDR_SIZE + \
+                                                       HCI_CMD_PREAMBLE_SIZE);
+        if(p_buf)
+        {
+            p_buf->event = MSG_STACK_TO_HC_HCI_CMD;
+            p_buf->offset = 0;
+            p_buf->layer_specific = 0;
+            p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+
+            p = (uint8_t *) (p_buf + 1);
+
+            if(transtype & RTKBT_TRANS_H4) {
+                p = (uint8_t *)(p_buf + 1);
+                UINT16_TO_STREAM(p, HCI_READ_LMP_VERSION);
+                *p++ = 0;
+                p_buf->len = HCI_CMD_PREAMBLE_SIZE;
+
+                hw_cfg_cb.state = HW_CFG_READ_LOCAL_VER;
+                bt_vendor_cbacks->xmit_cb(HCI_READ_LMP_VERSION, p_buf, hw_config_cback);
+            }
+            else {
+                UINT16_TO_STREAM(p, HCI_VSC_H5_INIT);
+                *p = 0; /* parameter length */
+                hw_cfg_cb.state = HW_CFG_H5_INIT;
+
+                bt_vendor_cbacks->xmit_cb(HCI_VSC_H5_INIT, p_buf, hw_config_cback);
+            }
+        }
+        else {
+            ALOGE("%s buffer alloc fail!", __func__);
+        }
     }
+    else
+        ALOGE("%s call back is null", __func__);
 }
 
 #if (HW_END_WITH_HCI_RESET == TRUE)
@@ -1370,11 +1553,11 @@ void hw_epilog_cback(void *p_mem)
     uint8_t     *p, status;
     uint16_t    opcode;
 
-    status = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_RET_BYTE);
-    p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE;
+    status = *((uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_STATUS_OFFSET);
+    p = (uint8_t *)(p_evt_buf + 1) + HCI_EVT_CMD_CMPL_OPCODE_OFFSET;
     STREAM_TO_UINT16(opcode,p);
 
-    BTHWDBG("%s Opcode:0x%04X Status: %d", __FUNCTION__, opcode, status);
+    BTVNDDBG("%s Opcode:0x%04X Status: %d", __FUNCTION__, opcode, status);
 
     if (bt_vendor_cbacks)
     {
@@ -1402,7 +1585,7 @@ void hw_epilog_process(void)
     HC_BT_HDR  *p_buf = NULL;
     uint8_t     *p;
 
-    BTHWDBG("hw_epilog_process");
+    BTVNDDBG("hw_epilog_process");
 
     /* Sending a HCI_RESET */
     if (bt_vendor_cbacks)
